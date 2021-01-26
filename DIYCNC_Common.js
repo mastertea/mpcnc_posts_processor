@@ -37,6 +37,9 @@ properties = {
   probeG38Target: -10,              // probing up to pos 
   probeG38Speed: 30,                // probing with speed 
 
+  probeAuto: false,                 // Auto bed leveling
+  probeAutoMatrix: 3,               // Auto bed leveling matrix. Default: 3x3 
+
   gcodeStartFile: "",               // File with custom Gcode for header/start (in nc folder)
   gcodeStopFile: "",                // File with custom Gcode for footer/end (in nc folder)
   gcodeToolFile: "",                // File with custom Gcode for tool change (in nc folder)
@@ -170,6 +173,15 @@ propertyDefinitions = {
     type: "spatial", default_mm: 30, default_in: 1.2
   },
 
+  probeAuto: {
+    title: "Probe: G29 Auto Leveling", description: "Use G29, auto bed leveling", group: 3,
+    type: "boolean", default_mm: true, default_in: true
+  },
+  probeAutoMatrix: {
+    title: "Probe: G29 probing Matrix(x)", description: "Set G29 matrix", group: 3,
+    type: "integer", default_mm: 3, default_in: 3
+  },
+
   cutterOnVaporize: {
     title: "Laser: On - Vaporize", description: "Persent of power to turn on the laser/plasma cutter in vaporize mode", group: 4,
     type: "number", default_mm: 100, default_in: 100
@@ -299,6 +311,10 @@ capabilities = CAPABILITY_MILLING | CAPABILITY_JET;
 vendor = "guffy1234";
 vendorUrl = "https://github.com/guffy1234/mpcnc_posts_processor";
 
+ranges = {
+
+};
+
 var sequenceNumber;
 
 // Formats
@@ -312,6 +328,9 @@ var zFormat = createFormat({ prefix: "Z", decimals: (unit == MM ? 3 : 4) });
 var iFormat = createFormat({ prefix: "I", decimals: (unit == MM ? 3 : 4) });
 var jFormat = createFormat({ prefix: "J", decimals: (unit == MM ? 3 : 4) });
 var kFormat = createFormat({ prefix: "K", decimals: (unit == MM ? 3 : 4) });
+var lFormat = createFormat({ prefix: "L", decimals: (unit == MM ? 3 : 4) });
+var rFormat = createFormat({ prefix: "R", decimals: (unit == MM ? 3 : 4) });
+var bFormat = createFormat({ prefix: "B", decimals: (unit == MM ? 3 : 4) });
 
 var speedFormat = createFormat({ decimals: 0 });
 var sFormat = createFormat({ prefix: "S", decimals: 0 });
@@ -696,7 +715,7 @@ function writeFirstSection() {
   var toolZRanges = {};
   var vectorX = new Vector(1, 0, 0);
   var vectorY = new Vector(0, 1, 0);
-  var ranges = {
+  ranges = {
     x: { min: undefined, max: undefined },
     y: { min: undefined, max: undefined },
     z: { min: undefined, max: undefined },
@@ -1049,7 +1068,15 @@ Firmware3dPrinterLike.prototype.toolChange = function () {
 Firmware3dPrinterLike.prototype.probeTool = function () {
   this.askUser("Attach ZProbe", "Probe", false);
   // refer http://marlinfw.org/docs/gcode/G038.html
-  if (properties.probeUseHomeZ) {
+  if(properties.probeAuto)
+  {
+    writeBlock(gFormat.format(29), 
+      xFormat.format(properties.probeAutoMatrix), 
+      yFormat.format(properties.probeAutoMatrix),
+      lFormat.format(ranges.x.min), rFormat.format(ranges.x.max),
+      fFormat.format(ranges.y.min), bFormat.format(ranges.y.max));
+  }
+  else if (properties.probeUseHomeZ) {
     writeBlock(gFormat.format(28), 'Z');
   } else {
     writeBlock(gMotionModal.format(38.3), fFormat.format(propertyMmToUnit(properties.probeG38Speed)), zFormat.format(propertyMmToUnit(properties.probeG38Target)));
@@ -1060,6 +1087,7 @@ Firmware3dPrinterLike.prototype.probeTool = function () {
     rapidMovementsZ(propertyMmToUnit(properties.toolChangeZ));
   }
   this.flushMotions();
+
   this.askUser("Detach ZProbe", "Probe", false);
 }
 
